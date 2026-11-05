@@ -1,0 +1,130 @@
+{
+  "name": "Агент-сторож: запуск",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        64,
+        16
+      ],
+      "id": "9f8607ba-b75a-4ea7-80f6-2fc1f520a2fa",
+      "name": "Webhook",
+      "webhookId": "fd914dce-591f-489b-a7b1-d2a6017a755a"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты помощник администратора. Агент прислал данные компьютера.\nОбъясни простыми словами по-русски в 2–3 предложениях, сколько компьютер\nработает без перезагрузки и стоит ли его перезагрузить.\nПиши только по-русски. Не пересчитывай числа, бери их как есть.\nКомпьютер: {{ $json.body.host }}.\nРаботает без перезагрузки: {{ Math.floor($json.body.uptime_s / 86400) }} дн. {{ Math.floor($json.body.uptime_s % 86400 / 3600) }} ч.",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        336,
+        -48
+      ],
+      "id": "95d85673-2b74-4a74-ad9f-7e9619eee0f7",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:3b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        336,
+        208
+      ],
+      "id": "f3cac0d5-4b82-48f1-8a34-4123f88b4b78",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "E5fj7abkw1xDy3zQ",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "maximkleynovsky@yandex.ru",
+        "toEmail": "  ivan.petrov@example.com",
+        "subject": "=  Агент-сторож: {{ $('Webhook').item.json.body.event }} на {{ $('Webhook').item.json.body.host }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}\n\nСообщение агента:\n{{ JSON.stringify($('Webhook').item.json.body, null, 2) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        688,
+        -48
+      ],
+      "id": "37953993-b669-43de-b4f8-09061e6c7f81",
+      "name": "Send an Email",
+      "webhookId": "8b74416c-e25a-4360-80da-453cf03a12cd",
+      "credentials": {
+        "smtp": {
+          "id": "57sNSJ3EP2FHEuQI",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "92d8911a-faac-4750-b29c-6cc42acf9c35",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b20dfea8263afc35bc7bcb155fa5e341bf4ffa07aa922f26af9fc5b1f2e7d4a5"
+  },
+  "id": "wDoFHIXvy5F769AX",
+  "tags": []
+}

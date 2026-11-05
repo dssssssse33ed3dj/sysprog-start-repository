@@ -20,6 +20,6 @@ int core_get_info(struct core_info *out) {
     if (WideCharToMultiByte(CP_UTF8, 0, name, -1, out->host,
                             sizeof out->host, NULL, NULL) == 0)
         return (int)GetLastError();
-        
+        out->uptime_s = GetTickCount64() / 1000; // переводим миллисекунды в секунды
     return 0;
 }
