@@ -3,6 +3,7 @@ import ctypes
 import json
 import os
 import sys
+import urllib.request 
 from pathlib import Path
 
 CORE_DIR = Path(__file__).resolve().parent.parent / "core"
@@ -41,7 +42,17 @@ def get_info():
         "host": info.host.decode("utf-8"),
     }
 
+def send(message, url):
+    data = json.dumps(message, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(url, data=data, method="POST",
+                                     headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return response.status, response.read().decode("utf-8")
+
 
 if __name__ == "__main__":
     message = {"event": "agent_started", "os": sys.platform, **get_info()}
     print(json.dumps(message, ensure_ascii=False, indent=2))
+    if len(sys.argv) > 1:
+        status, body = send(message, sys.argv[1])
+        print("n8n:", status, body)
