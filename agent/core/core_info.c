@@ -22,4 +22,6 @@ int core_get_info(struct core_info *out) {
         return (int)GetLastError();
         out->uptime_s = GetTickCount64() / 1000; // переводим миллисекунды в секунды
     return 0;
+
+    
 }
