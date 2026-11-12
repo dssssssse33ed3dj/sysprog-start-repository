@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import errno  
+import time  
 import urllib.request 
 from pathlib import Path
 
@@ -27,11 +28,17 @@ class CoreProc(ctypes.Structure):
         ("name", ctypes.c_char * 64),
     ]
 
-
 class CoreChild(ctypes.Structure):
     _fields_ = [
         ("pid", ctypes.c_int64),
         ("handle", ctypes.c_int64),
+    ]
+
+
+class CoreCpu(ctypes.Structure):
+    _fields_ = [
+        ("user_us", ctypes.c_int64),
+        ("kernel_us", ctypes.c_int64),
     ]
 
 
@@ -44,11 +51,14 @@ core.core_list_procs.argtypes = [ctypes.POINTER(CoreProc), ctypes.c_int32, ctype
 core.core_list_procs.restype = ctypes.c_int
 TOO_SMALL = 122 if sys.platform == "win32" else errno.ERANGE
 
-
 core.core_spawn.argtypes = [ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(CoreChild)]
 core.core_spawn.restype = ctypes.c_int
 core.core_wait.argtypes = [ctypes.POINTER(CoreChild), ctypes.c_int32, ctypes.POINTER(ctypes.c_int32)]
 core.core_wait.restype = ctypes.c_int
+
+
+core.core_proc_cpu.argtypes = [ctypes.c_int64, ctypes.POINTER(CoreCpu)]
+core.core_proc_cpu.restype = ctypes.c_int
 
 
 
@@ -94,8 +104,6 @@ def parents(procs, pid):
         pid = p["ppid"]
     return chain
 
-
-
 def spawn(args):
     argv = (ctypes.c_char_p * (len(args) + 1))(*[a.encode("utf-8") for a in args], None)
     child = CoreChild()
@@ -112,6 +120,28 @@ def wait(child, timeout_ms=-1):
     return code.value
 
 
+def proc_cpu(pid):
+    cpu = CoreCpu()
+    if core.core_proc_cpu(pid, ctypes.byref(cpu)) != 0:
+        return None
+    return cpu.user_us + cpu.kernel_us
+
+def cpu_load(interval=1.0):
+    procs = list_procs()
+    before = {p["pid"]: proc_cpu(p["pid"]) for p in procs}
+    start = time.monotonic()
+    time.sleep(interval)
+    after = {p["pid"]: proc_cpu(p["pid"]) for p in procs}
+    wall_us = (time.monotonic() - start) * 1_000_000
+    load = []
+    for p in procs:
+        a, b = before[p["pid"]], after[p["pid"]]
+        if a is not None and b is not None:
+            load.append({"pid": p["pid"], "name": p["name"], "cpu": round((b - a) * 100 / wall_us)})
+    return sorted(load, key=lambda x: x["cpu"], reverse=True)
+
+
+
 def send(message, url):
     data = json.dumps(message, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(url, data=data, method="POST",
@@ -121,21 +151,20 @@ def send(message, url):
 
 
 if __name__ == "__main__":
-    child = spawn([sys.executable, "-c", "import time; time.sleep(1); raise SystemExit(3)"])
+
+    child = spawn([sys.executable, "-c", "import time\nend = time.time() + 3\nwhile time.time() < end: pass"])
+
+    top = cpu_load(1.0)[:3]
     
-    procs = list_procs()
-    chain = parents(procs, child.pid)
-    
-    code = wait(child, 5000)
+
+    wait(child, 5000)
     
     message = {
         "event": "agent_started", 
         "os": sys.platform, 
         **get_info(),
-        "procs": len(procs), 
         "child": child.pid, 
-        "child_code": code,
-        "parents": [p["name"] for p in chain] 
+        "top": top
     }
     
     print(json.dumps(message, ensure_ascii=False, indent=2))
